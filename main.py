@@ -1,256 +1,134 @@
-# ==========================================
-# UMBRAE CUTS - SISTEMA PRINCIPAL
-# ✅ Corta videos 60s | ✅ Nombra archivos | ✅ Publica automático
-# ✅ Interfaz web | ✅ Conexión WhatsApp
-# ==========================================
-
 from flask import Flask, render_template, request, jsonify
-from whatsapp_api import WhatsAppAPI
-from moviepy.editor import VideoFileClip
 import os
-import random
-import string
+import threading
+import queue
+import subprocess
+from core.cortar import extraer_segmento
+from core.enviar_whatsapp import despachar_a_whatsapp
+import config
 
-# Inicializar aplicación
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'umbrae_cuts_2024'
 
-# Carpetas de trabajo
-CARPETA_ENTRADA = "videos_entrada"
-CARPETA_SALIDA = "videos_salida"
+# Carpetas
+INPUT_FOLDER = config.INPUT_FOLDER
+os.makedirs(INPUT_FOLDER, exist_ok=True)
+os.makedirs(config.TEMP_FOLDER, exist_ok=True)
 
-# Crear carpetas si no existen
-os.makedirs(CARPETA_ENTRADA, exist_ok=True)
-os.makedirs(CARPETA_SALIDA, exist_ok=True)
+PROCESANDO = False
+cola = queue.Queue()
 
-# Inicializar API de WhatsApp
-whatsapp = WhatsAppAPI()
+class MallyLogger:
+    def __init__(self, nombre, total):
+        self.nombre = nombre.strip().upper()
+        self.total = total
 
-# Variable global para guardar lista de archivos generados
-archivos_generados = []
+    def exito(self, n):
+        return (f"🎬 {self.nombre}\n"
+                f"💎 PARTE: {n} / {self.total}\n"
+                f"✅ Contenido procesado\n"
+                f"🔗 @MallyUmbrae")
 
-# ==========================================
-# RUTAS PRINCIPALES
-# ==========================================
+# --- HILOS DE ALTA VELOCIDAD ---
+def productor(ruta_video, total_partes, log):
+    """Corta super rapido y mete en cola"""
+    for n in range(1, total_partes + 1):
+        print(f"⚡ CORTANDO PARTE {n}/{total_partes}")
+        path = extraer_segmento(ruta_video, n, total_partes)
+        if os.path.exists(path):
+            cola.put({
+                'n': n,
+                'path': path,
+                'caption': log.exito(n)
+            })
+    cola.put(None) # Marca de finalización
 
-@app.route('/')
+def consumidor():
+    """Envia mientras el otro corta"""
+    while True:
+        item = cola.get()
+        if item is None:
+            break
+        print(f"📤 ENVIANDO PARTE {item['n']}")
+        ok = despachar_a_whatsapp(item['path'], item['caption'])
+        if ok:
+            print(f"✅ PARTE {item['n']} PUBLICADA")
+        # Eliminar archivo temporal después de publicar
+        if os.path.exists(item['path']):
+            os.remove(item['path'])
+        cola.task_done()
+
+@app.route("/")
 def index():
-    """Cargar interfaz principal"""
-    return render_template('index.html')
+    return render_template("index.html")
 
-# ==========================================
-# FUNCIÓN DE CORTE DE VIDEOS
-# ==========================================
+@app.route("/procesar", methods=["POST"])
+def procesar():
+    global PROCESANDO
 
-@app.route('/cortar-video', methods=['POST'])
-def cortar_video():
-    global archivos_generados
-    archivos_generados.clear()
+    if PROCESANDO:
+        return jsonify({"status": "ocupado", "mensaje": "⏳ Ya estoy trabajando..."})
 
-    try:
-        # Recibir el archivo enviado desde la web
-        archivo = request.files['video']
-        if not archivo:
-            return jsonify({
-                "exito": False,
-                "mensaje": "No se recibió ningún archivo"
-            })
+    if "video" not in request.files:
+        return jsonify({"status": "error", "mensaje": "Selecciona un video primero"})
 
-        # Guardar video original
-        ruta_original = os.path.join(CARPETA_ENTRADA, archivo.filename)
-        archivo.save(ruta_original)
+    archivo = request.files["video"]
+    titulo = request.form.get("titulo", "SIN_TITULO")
+    codigo_whatsapp = request.form.get("codigo", "")
 
-        # Cargar video con MoviePy
-        video = VideoFileClip(ruta_original)
-        duracion_total = int(video.duration)
-        duracion_fragmento = 60  # 60 segundos exactos
-        cantidad_fragmentos = duracion_total // duracion_fragmento
-        resto = duracion_total % duracion_fragmento
+    # Guardar código en configuración
+    config.CODIGO_SESION = codigo_whatsapp
 
-        # Si el video es más corto de 60s, lo guardamos como un solo fragmento
-        if cantidad_fragmentos == 0:
-            cantidad_fragmentos = 1
-            resto = 0
+    ruta_entrada = os.path.join(INPUT_FOLDER, archivo.filename)
+    archivo.save(ruta_entrada)
 
-        print(f"📹 Duración total: {duracion_total}s")
-        print(f"✂️ Se generarán {cantidad_fragmentos} fragmentos de 60s")
+    PROCESANDO = True
 
-        # Cortar el video
-        numero = 1
-        tiempo_inicio = 0
+    def trabajo_completo():
+        global PROCESANDO
 
-        while tiempo_inicio < duracion_total:
-            # Definir tiempo final del fragmento
-            tiempo_final = tiempo_inicio + duracion_fragmento
+        # Calcular duracion y partes
+        res = subprocess.run([
+            'ffprobe', '-v', 'error', '-show_entries', 'format=duration', 
+            '-of', 'default=noprint_wrappers=1:nokey=1', ruta_entrada
+        ], capture_output=True, text=True)
 
-            # Si es el último fragmento y sobra tiempo, ajustamos
-            if tiempo_final > duracion_total:
-                tiempo_final = duracion_total
+        duracion = float(res.stdout)
+        total_partes = int(duracion // config.CLIP_DURATION) + 1
 
-            # Crear fragmento
-            fragmento = video.subclip(tiempo_inicio, tiempo_final)
+        log = MallyLogger(titulo, total_partes)
 
-            # Nombre del archivo según lo pedido: 1.mp4, 2.mp4... hasta 0000.mp4 al final
-            if numero == cantidad_fragmentos and resto == 0:
-                nombre_archivo = "0000.mp4"
-            else:
-                nombre_archivo = f"{numero}.mp4"
+        print(f"🔥 INICIANDO: {titulo} | TOTAL DE PARTES: {total_partes}")
 
-            ruta_salida = os.path.join(CARPETA_SALIDA, nombre_archivo)
+        # LANZAR PROCESOS EN PARALELO
+        hilo1 = threading.Thread(target=productor, args=(ruta_entrada, total_partes, log))
+        hilo2 = threading.Thread(target=consumidor)
 
-            # Guardar fragmento con calidad alta
-            fragmento.write_videofile(
-                ruta_salida,
-                codec="libx264",
-                audio_codec="aac",
-                bitrate="8000k",  # Calidad alta 4K/HD
-                fps=30,
-                threads=4,
-                verbose=False,
-                logger=None
-            )
+        hilo1.start()
+        hilo2.start()
 
-            # Agregar a la lista
-            archivos_generados.append(nombre_archivo)
-            print(f"✅ Generado: {nombre_archivo}")
+        hilo1.join()
+        hilo2.join()
 
-            # Liberar memoria
-            fragmento.close()
+        # Limpieza final
+        if os.path.exists(ruta_entrada):
+            os.remove(ruta_entrada)
 
-            # Pasar al siguiente
-            tiempo_inicio = tiempo_final
-            numero += 1
+        PROCESANDO = False
+        print("✅ PROCESO FINALIZADO - TODOS LOS ESTADOS PUBLICADOS")
 
-        # Cerrar video original
-        video.close()
+    # === Calcular datos antes de responder ===
+    res = subprocess.run([
+        'ffprobe', '-v', 'error', '-show_entries', 'format=duration', 
+        '-of', 'default=noprint_wrappers=1:nokey=1', ruta_entrada
+    ], capture_output=True, text=True)
+    duracion = float(res.stdout)
+    total_partes = int(duracion // config.CLIP_DURATION) + 1
 
-        # Generar código temporal de 8 dígitos para mostrar al usuario
-        codigo_temporal = ''.join(random.choices(string.digits, k=8))
+    threading.Thread(target=trabajo_completo, daemon=True).start()
 
-        return jsonify({
-            "exito": True,
-            "cantidad": cantidad_fragmentos,
-            "archivos": archivos_generados,
-            "codigo_temporal": codigo_temporal,
-            "mensaje": "Video cortado correctamente"
-        })
+    return jsonify({"status": "ok", "mensaje": f"🚀 PROCESANDO {total_partes} PARTES EN MODO VELOCIDAD"})
 
-    except Exception as e:
-        return jsonify({
-            "exito": False,
-            "mensaje": f"Error al procesar: {str(e)}"
-        })
-
-# ==========================================
-# FUNCIÓN DE PUBLICACIÓN AUTOMÁTICA
-# ==========================================
-
-@app.route('/publicar-estados', methods=['POST'])
-def publicar_estados():
-    global archivos_generados
-
-    try:
-        # Recibir código ingresado por el usuario
-        datos = request.get_json()
-        codigo_ingresado = datos.get('codigo', '')
-
-        if not codigo_ingresado or len(codigo_ingresado) != 8:
-            return jsonify({
-                "exito": False,
-                "mensaje": "El código debe tener exactamente 8 dígitos"
-            })
-
-        if not archivos_generados:
-            return jsonify({
-                "exito": False,
-                "mensaje": "No hay videos preparados para publicar"
-            })
-
-        # Conectar con WhatsApp
-        estado_conexion = whatsapp.iniciar_sesion()
-        print(f"🔌 {estado_conexion}")
-
-        # Verificar código
-        valido, mensaje = whatsapp.verificar_codigo(codigo_ingresado)
-        if not valido:
-            return jsonify({
-                "exito": False,
-                "mensaje": mensaje
-            })
-
-        # Publicar cada video automáticamente
-        publicados = 0
-        errores = 0
-
-        for nombre_archivo in archivos_generados:
-            ruta_completa = os.path.join(CARPETA_SALIDA, nombre_archivo)
-            print(f"📤 Publicando: {nombre_archivo}")
-
-            resultado, detalle = whatsapp.publicar_estado(ruta_completa)
-            
-            if resultado:
-                publicados += 1
-                print(f"✅ Publicado correctamente: {nombre_archivo}")
-            else:
-                errores += 1
-                print(f"❌ Error al publicar {nombre_archivo}: {detalle}")
-
-        # Resumen final
-        return jsonify({
-            "exito": True,
-            "publicados": publicados,
-            "errores": errores,
-            "mensaje": f"Proceso finalizado. {publicados} estados publicados correctamente."
-        })
-
-    except Exception as e:
-        return jsonify({
-            "exito": False,
-            "mensaje": f"Error en la publicación: {str(e)}"
-        })
-
-# ==========================================
-# LIMPIEZA DE ARCHIVOS TEMPORALES
-# ==========================================
-
-@app.route('/limpiar', methods=['POST'])
-def limpiar_archivos():
-    """Elimina los archivos generados para liberar espacio"""
-    try:
-        # Borrar archivos de entrada
-        for archivo in os.listdir(CARPETA_ENTRADA):
-            ruta = os.path.join(CARPETA_ENTRADA, archivo)
-            if os.path.isfile(ruta):
-                os.remove(ruta)
-
-        # Borrar archivos de salida
-        for archivo in os.listdir(CARPETA_SALIDA):
-            ruta = os.path.join(CARPETA_SALIDA, archivo)
-            if os.path.isfile(ruta):
-                os.remove(ruta)
-
-        archivos_generados.clear()
-
-        return jsonify({
-            "exito": True,
-            "mensaje": "Archivos eliminados correctamente"
-        })
-
-    except Exception as e:
-        return jsonify({
-            "exito": False,
-            "mensaje": f"Error al limpiar: {str(e)}"
-        })
-
-# ==========================================
-# EJECUTAR APLICACIÓN
-# ==========================================
-
-if __name__ == '__main__':
-    print("="*60)
-    print("🌑 UMBRAE CUTS - SISTEMA INICIADO")
-    print("✅ Cortador de videos 60s")
-    print("✅ Nomenclatura automática")
-    print("✅ Publicación automática WhatsApp")
-    print("="*60)
-    app.run(host='0.0.0.0', port=5000, debug=True)
+if __name__ == "__main__":
+    print("⚡ UMBRAE CUTS - WHATSAPP EDICIÓN ⚡")
+    print("✅ Cortes rápidos | ✅ Publicación automática | ✅ Nomenclatura personalizada")
+    app.run(host="0.0.0.0", port=5000, debug=False)
