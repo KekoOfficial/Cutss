@@ -9,14 +9,14 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Segoe UI', sans-serif;
+            font-family: 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
         }
 
         body {
-            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
             min-height: 100vh;
             padding: 40px 20px;
-            color: white;
+            color: #ffffff;
         }
 
         .contenedor {
@@ -27,16 +27,244 @@
         h1 {
             text-align: center;
             font-size: 2.8rem;
-            background: linear-gradient(90deg, #7b2cbf, #c77dff);
+            background: linear-gradient(90deg, #7b2cbf, #c77dff, #e0aaff);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            font-weight: 900;
+            letter-spacing: 1px;
+        }
+
+        .subtitulo {
+            text-align: center;
+            font-size: 1.2rem;
+            color: #a29bfe;
             margin-bottom: 40px;
+            line-height: 1.5;
         }
 
         .tarjeta {
-            background: rgba(255,255,255,0.05);
-            backdrop-filter: blur(15px);
-            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border-radius: 25px;
             padding: 35px;
             margin-bottom: 30px;
-            border
+            border: 1px solid rgba(123, 44, 191, 0.2);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease;
+        }
+
+        .tarjeta:hover {
+            transform: translateY(-3px);
+        }
+
+        .tarjeta h2 {
+            font-size: 1.6rem;
+            margin-bottom: 20px;
+            color: #e0aaff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="file"],
+        input[type="text"] {
+            width: 100%;
+            padding: 18px 20px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid #7b2cbf;
+            border-radius: 15px;
+            color: white;
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="file"]:focus,
+        input[type="text"]:focus {
+            border-color: #c77dff;
+            box-shadow: 0 0 10px rgba(199, 125, 255, 0.3);
+        }
+
+        input::placeholder {
+            color: #b8b8d8;
+        }
+
+        button {
+            width: 100%;
+            padding: 18px 25px;
+            background: linear-gradient(135deg, #7b2cbf 0%, #5a189a 100%);
+            color: white;
+            border: none;
+            border-radius: 15px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 8px 25px rgba(123, 44, 191, 0.4);
+        }
+
+        button:hover {
+            transform: scale(1.02);
+            box-shadow: 0 12px 35px rgba(123, 44, 191, 0.6);
+        }
+
+        button:disabled {
+            background: #4a4a6a;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .estado {
+            margin-top: 25px;
+            padding: 20px;
+            border-radius: 15px;
+            font-size: 1.1rem;
+            text-align: center;
+            font-weight: 500;
+            line-height: 1.6;
+        }
+
+        .exito {
+            background: rgba(37, 211, 102, 0.1);
+            border: 2px solid #25d366;
+            color: #25d366;
+        }
+
+        .error {
+            background: rgba(255, 77, 77, 0.1);
+            border: 2px solid #ff4d4d;
+            color: #ff4d4d;
+        }
+
+        .aviso {
+            background: rgba(255, 193, 7, 0.1);
+            border: 2px solid #ffc107;
+            color: #ffc107;
+        }
+
+        .info {
+            background: rgba(76, 201, 240, 0.1);
+            border: 2px solid #4cc9f0;
+            color: #4cc9f0;
+        }
+
+        /* Diseño para pantallas pequeñas */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 2.2rem;
+            }
+
+            .tarjeta {
+                padding: 25px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="contenedor">
+        <h1>🌑 Umbrae Cuts</h1>
+        <p class="subtitulo">Corta tus videos en fragmentos de 60 segundos y publícalos automáticamente como estados de WhatsApp</p>
+
+        <div class="tarjeta">
+            <h2>📤 Seleccionar Video</h2>
+            <input type="file" id="videoInput" accept="video/*" required>
+            
+            <h2>📝 Título del Contenido</h2>
+            <input type="text" id="tituloInput" placeholder="Ej: Mi mejor recopilación, Capítulos de serie, etc." required>
+
+            <h2>🔑 Código de Conexión WhatsApp</h2>
+            <input type="text" id="codigoInput" maxlength="8" placeholder="Ingresa tu código de 8 dígitos" required>
+
+            <button id="btnProcesar">⚡ Cortar y Publicar Ahora</button>
+
+            <div id="estadoProceso" class="estado info">
+                ℹ️ Completa todos los campos y presiona el botón para iniciar el proceso
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Elementos del DOM
+        const btnProcesar = document.getElementById('btnProcesar');
+        const estadoProceso = document.getElementById('estadoProceso');
+        const videoInput = document.getElementById('videoInput');
+        const tituloInput = document.getElementById('tituloInput');
+        const codigoInput = document.getElementById('codigoInput');
+
+        // Acción al presionar el botón
+        btnProcesar.addEventListener('click', async () => {
+            // Obtener valores
+            const archivoVideo = videoInput.files[0];
+            const titulo = tituloInput.value.trim();
+            const codigo = codigoInput.value.trim();
+
+            // Validaciones
+            if (!archivoVideo) {
+                estadoProceso.className = 'estado error';
+                estadoProceso.textContent = '❌ Debes seleccionar un archivo de video primero';
+                return;
+            }
+
+            if (!titulo) {
+                estadoProceso.className = 'estado error';
+                estadoProceso.textContent = '❌ Escribe un título para tu contenido';
+                return;
+            }
+
+            if (codigo.length !== 8 || !/^\d+$/.test(codigo)) {
+                estadoProceso.className = 'estado error';
+                estadoProceso.textContent = '❌ El código debe tener exactamente 8 números, sin letras ni símbolos';
+                return;
+            }
+
+            // Cambiar estado y desactivar botón
+            estadoProceso.className = 'estado aviso';
+            estadoProceso.textContent = '⏳ Procesando... No cierres esta página ni apagues el dispositivo';
+            btnProcesar.disabled = true;
+            btnProcesar.textContent = '🔄 Trabajando...';
+
+            // Preparar datos para enviar
+            const datosFormulario = new FormData();
+            datosFormulario.append('video', archivoVideo);
+            datosFormulario.append('titulo', titulo);
+            datosFormulario.append('codigo', codigo);
+
+            try {
+                // Enviar solicitud al servidor
+                const respuesta = await fetch('/procesar', {
+                    method: 'POST',
+                    body: datosFormulario
+                });
+
+                const resultado = await respuesta.json();
+
+                // Mostrar respuesta del servidor
+                if (resultado.status === 'ok') {
+                    estadoProceso.className = 'estado exito';
+                    estadoProceso.textContent = `✅ ${resultado.mensaje}\n\nLos videos se están publicando automáticamente, espera a que termine todo el proceso.`;
+                } else if (resultado.status === 'ocupado') {
+                    estadoProceso.className = 'estado aviso';
+                    estadoProceso.textContent = `⚠️ ${resultado.mensaje}`;
+                } else {
+                    estadoProceso.className = 'estado error';
+                    estadoProceso.textContent = `❌ ${resultado.mensaje}`;
+                }
+
+            } catch (error) {
+                estadoProceso.className = 'estado error';
+                estadoProceso.textContent = `❌ Error de conexión: ${error.message}\n\nRevisa que el programa esté ejecutándose correctamente.`;
+            } finally {
+                // Volver a activar el botón
+                btnProcesar.disabled = false;
+                btnProcesar.textContent = '⚡ Cortar y Publicar Ahora';
+            }
+        });
+    </script>
+</body>
+</html>
