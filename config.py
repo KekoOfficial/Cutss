@@ -14,14 +14,20 @@ TEMP_FOLDER = "videos/output"
 INPUT_FOLDER = "videos/input"
 
 # 📱 DATOS DE WHATSAPP
-# Tu número de teléfono con código de país (ya lo configuré)
+# Tu número de teléfono ya configurado
 NUMERO_USUARIO = "+595984067983"  
 
-# Código que genera el sistema y te envía
-CODIGO_GENERADO = ""
+# Aquí se guarda el código que NOSOTROS TE ENVIAMOS
+CODIGO_ENVIADO = ""
 
-def generar_codigo():
-    """Genera un código aleatorio de 8 dígitos para enviarte por WhatsApp"""
-    global CODIGO_GENERADO
-    CODIGO_GENERADO = ''.join(random.choices('0123456789', k=8))
-    return CODIGO_GENERADO
+def generar_y_guardar_codigo():
+    """Genera el código de 8 dígitos y lo guarda para enviártelo"""
+    global CODIGO_ENVIADO
+    # Generamos el código aleatorio
+    CODIGO_ENVIADO = ''.join(random.choices('0123456789', k=8))
+    print(f"📌 CÓDIGO GENERADO PARA ENVIAR: {CODIGO_ENVIADO}")
+    return CODIGO_ENVIADO
+
+def verificar_codigo_ingresado(codigo_usuario):
+    """Comprueba que el código que pusiste sea el mismo que te enviamos"""
+    return codigo_usuario.strip() == CODIGO_ENVIADO
