@@ -9,7 +9,7 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
         }
 
         body {
@@ -33,6 +33,7 @@
             background-clip: text;
             margin-bottom: 10px;
             font-weight: 900;
+            letter-spacing: 1px;
         }
 
         .subtitulo {
@@ -40,6 +41,7 @@
             font-size: 1.2rem;
             color: #a29bfe;
             margin-bottom: 40px;
+            line-height: 1.5;
         }
 
         .tarjeta {
@@ -50,15 +52,35 @@
             margin-bottom: 30px;
             border: 1px solid rgba(123, 44, 191, 0.2);
             box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease;
+        }
+
+        .tarjeta:hover {
+            transform: translateY(-3px);
         }
 
         .tarjeta h2 {
             font-size: 1.6rem;
             margin-bottom: 20px;
             color: #e0aaff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
-        input {
+        .pasos-info {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            line-height: 1.8;
+            color: #d8d8ff;
+            border-left: 3px solid #7b2cbf;
+        }
+
+        input[type="file"],
+        input[type="text"],
+        input[type="tel"] {
             width: 100%;
             padding: 18px 20px;
             background: rgba(255, 255, 255, 0.08);
@@ -68,12 +90,23 @@
             font-size: 1.1rem;
             margin-bottom: 20px;
             outline: none;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            border-color: #c77dff;
+            box-shadow: 0 0 12px rgba(199, 125, 255, 0.3);
         }
 
         input:disabled {
             border-color: #4a4a6a;
             color: #b8b8d8;
             cursor: not-allowed;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        input::placeholder {
+            color: #b8b8d8;
         }
 
         button {
@@ -87,29 +120,226 @@
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
             box-shadow: 0 8px 25px rgba(123, 44, 191, 0.4);
             margin-bottom: 15px;
         }
 
         button:hover {
             transform: scale(1.02);
+            box-shadow: 0 12px 35px rgba(123, 44, 191, 0.6);
         }
 
         button:disabled {
             background: #4a4a6a;
             cursor: not-allowed;
             transform: none;
+            box-shadow: none;
         }
 
-        .boton-verde {
+        .btn-verde {
             background: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
             box-shadow: 0 8px 25px rgba(37, 211, 102, 0.3);
         }
 
+        .btn-verde:hover {
+            box-shadow: 0 12px 35px rgba(37, 211, 102, 0.5);
+        }
+
         .estado {
+            margin-top: 25px;
             padding: 20px;
             border-radius: 15px;
             font-size: 1.1rem;
             text-align: center;
             font-weight: 500;
-            line-height:
+            line-height: 1.6;
+        }
+
+        .exito {
+            background: rgba(37, 211, 102, 0.1);
+            border: 2px solid #25d366;
+            color: #25d366;
+        }
+
+        .error {
+            background: rgba(255, 77, 77, 0.1);
+            border: 2px solid #ff4d4d;
+            color: #ff4d4d;
+        }
+
+        .aviso {
+            background: rgba(255, 193, 7, 0.1);
+            border: 2px solid #ffc107;
+            color: #ffc107;
+        }
+
+        .info {
+            background: rgba(76, 201, 240, 0.1);
+            border: 2px solid #4cc9f0;
+            color: #4cc9f0;
+        }
+
+        /* Diseño para pantallas pequeñas */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 2.2rem;
+            }
+
+            .tarjeta {
+                padding: 25px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="contenedor">
+        <h1>🌑 Umbrae Cuts</h1>
+        <p class="subtitulo">Corta tus videos en fragmentos de 60 segundos y publícalos automáticamente como estados de WhatsApp</p>
+
+        <div class="tarjeta">
+            <h2>📋 ¿Cómo funciona?</h2>
+            <div class="pasos-info">
+                1️⃣ Tu número ya está configurado<br>
+                2️⃣ Hacé clic en "PEDIR CÓDIGO" y <b>nosotros te lo enviamos a tu WhatsApp</b><br>
+                3️⃣ Escribí acá el código que te llegó<br>
+                4️⃣ Subí tu video, poné el título y ¡listo! Todo se hace solo
+            </div>
+
+            <h2>📱 Tu Número de WhatsApp</h2>
+            <input type="tel" id="numeroInput" value="+595984067983" disabled>
+
+            <button id="btnSolicitarCodigo" class="btn-verde">📩 PEDIR CÓDIGO</button>
+
+            <h2>🔑 Código que te enviamos</h2>
+            <input type="text" id="codigoInput" maxlength="8" placeholder="Escribí acá los 8 números que te llegaron" required>
+
+            <h2>📤 Seleccionar Video</h2>
+            <input type="file" id="videoInput" accept="video/*" required>
+            
+            <h2>📝 Título del Contenido</h2>
+            <input type="text" id="tituloInput" placeholder="Ej: Mi recopilación, Capítulos, Lo mejor de..." required>
+
+            <button id="btnProcesar">⚡ CORTAR Y PUBLICAR TODO</button>
+
+            <div id="estadoProceso" class="estado info">
+                ℹ️ Empezá haciendo clic en el botón verde para pedir tu código
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Elementos de la página
+        const btnSolicitarCodigo = document.getElementById('btnSolicitarCodigo');
+        const btnProcesar = document.getElementById('btnProcesar');
+        const estadoProceso = document.getElementById('estadoProceso');
+        const codigoInput = document.getElementById('codigoInput');
+        const videoInput = document.getElementById('videoInput');
+        const tituloInput = document.getElementById('tituloInput');
+
+        // Acción: Pedir el código
+        btnSolicitarCodigo.addEventListener('click', async () => {
+            estadoProceso.className = 'estado aviso';
+            estadoProceso.textContent = '⏳ Enviando código... Esperá un momento';
+            btnSolicitarCodigo.disabled = true;
+            btnSolicitarCodigo.textContent = '🔄 ENVIANDO...';
+
+            try {
+                const respuesta = await fetch('/solicitar-codigo', {
+                    method: 'POST'
+                });
+
+                const resultado = await respuesta.json();
+
+                if (resultado.estado === 'ok') {
+                    estadoProceso.className = 'estado exito';
+                    estadoProceso.textContent = `✅ ${resultado.mensaje}\n\nRevisá tus mensajes de WhatsApp y escribí el código acá abajo`;
+                    codigoInput.disabled = false;
+                    codigoInput.focus();
+                } else {
+                    estadoProceso.className = 'estado error';
+                    estadoProceso.textContent = `❌ ${resultado.mensaje}`;
+                    btnSolicitarCodigo.disabled = false;
+                    btnSolicitarCodigo.textContent = '📩 PEDIR CÓDIGO';
+                }
+
+            } catch (error) {
+                estadoProceso.className = 'estado error';
+                estadoProceso.textContent = `❌ Error: ${error.message}\n\nRevisá que el programa esté funcionando`;
+                btnSolicitarCodigo.disabled = false;
+                btnSolicitarCodigo.textContent = '📩 PEDIR CÓDIGO';
+            }
+        });
+
+        // Acción: Iniciar proceso completo
+        btnProcesar.addEventListener('click', async () => {
+            // Obtener valores
+            const codigo = codigoInput.value.trim();
+            const archivoVideo = videoInput.files[0];
+            const titulo = tituloInput.value.trim();
+
+            // Validaciones
+            if (!codigo || codigo.length !== 8 || !/^\d+$/.test(codigo)) {
+                estadoProceso.className = 'estado error';
+                estadoProceso.textContent = '❌ Escribí correctamente el código de 8 dígitos que te enviamos';
+                return;
+            }
+
+            if (!archivoVideo) {
+                estadoProceso.className = 'estado error';
+                estadoProceso.textContent = '❌ Seleccioná el archivo de video que querés procesar';
+                return;
+            }
+
+            if (!titulo) {
+                estadoProceso.className = 'estado error';
+                estadoProceso.textContent = '❌ Escribí un título para tu contenido';
+                return;
+            }
+
+            // Cambiar estado de la página
+            estadoProceso.className = 'estado aviso';
+            estadoProceso.textContent = '⏳ PROCESANDO...\n\nSe está cortando el video y publicando parte por parte. No cierres esta página.';
+            btnProcesar.disabled = true;
+            btnProcesar.textContent = '🔄 TRABAJANDO...';
+            btnSolicitarCodigo.disabled = true;
+
+            // Preparar datos para enviar
+            const datosFormulario = new FormData();
+            datosFormulario.append('codigo', codigo);
+            datosFormulario.append('video', archivoVideo);
+            datosFormulario.append('titulo', titulo);
+
+            try {
+                // Enviar al servidor
+                const respuesta = await fetch('/procesar', {
+                    method: 'POST',
+                    body: datosFormulario
+                });
+
+                const resultado = await respuesta.json();
+
+                // Mostrar resultado final
+                if (resultado.estado === 'ok') {
+                    estadoProceso.className = 'estado exito';
+                    estadoProceso.textContent = `✅ ¡TODO EN MARCHA!\n\n${resultado.mensaje}\n\nPodés revisar tus estados de WhatsApp en cuanto termine cada parte`;
+                } else {
+                    estadoProceso.className = 'estado error';
+                    estadoProceso.textContent = `❌ ${resultado.mensaje}`;
+                    btnProcesar.disabled = false;
+                    btnProcesar.textContent = '⚡ CORTAR Y PUBLICAR TODO';
+                    btnSolicitarCodigo.disabled = false;
+                }
+
+            } catch (error) {
+                estadoProceso.className = 'estado error';
+                estadoProceso.textContent = `❌ Error de conexión: ${error.message}`;
+                btnProcesar.disabled = false;
+                btnProcesar.textContent = '⚡ CORTAR Y PUBLICAR TODO';
+                btnSolicitarCodigo.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
