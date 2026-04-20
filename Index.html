@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌑 Umbrae Cuts - WhatsApp</title>
+    <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+    <div class="contenedor-principal">
+        <!-- CABECERA -->
+        <header class="cabecera">
+            <h1>🌑 Umbrae Cuts <span>4K • HD</span></h1>
+            <p class="subtitulo">Corta tus videos de 60s y publícalos automáticamente en Estados de WhatsApp</p>
+        </header>
+
+        <!-- SECCIÓN DE CARGA -->
+        <section class="seccion-carga">
+            <div class="tarjeta">
+                <h2>📤 Subir Video</h2>
+                <input type="file" id="archivoVideo" accept="video/*" class="input-archivo">
+                <button id="btnCortar" class="boton principal">✂️ Cortar y Preparar</button>
+            </div>
+        </section>
+
+        <!-- SECCIÓN DE AUTENTICACIÓN -->
+        <section class="seccion-auth" id="seccionAuth" style="display: none;">
+            <div class="tarjeta">
+                <h2>🔐 Conectar WhatsApp</h2>
+                <p>Abre WhatsApp Web y usa el código de 8 dígitos que te aparecerá allí:</p>
+                <div class="codigo-contenedor">
+                    <span id="codigo8digitos" class="codigo">--------</span>
+                </div>
+                <input type="text" id="codigoIngresado" maxlength="8" placeholder="Escribe el código aquí" class="input-codigo">
+                <button id="btnConectar" class="boton conectar">🔗 Conectar y Publicar Todo</button>
+            </div>
+        </section>
+
+        <!-- SECCIÓN DE ESTADO -->
+        <section class="seccion-estado">
+            <div class="tarjeta">
+                <h2>📊 Estado del Proceso</h2>
+                <div id="estadoProceso" class="estado">Esperando que subas un video...</div>
+                <div id="listaArchivos" class="lista-archivos"></div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // Comunicación con el backend Python
+        const btnCortar = document.getElementById('btnCortar');
+        const archivoVideo = document.getElementById('archivoVideo');
+        const seccionAuth = document.getElementById('seccionAuth');
+        const codigo8digitos = document.getElementById('codigo8digitos');
+        const codigoIngresado = document.getElementById('codigoIngresado');
+        const btnConectar = document.getElementById('btnConectar');
+        const estadoProceso = document.getElementById('estadoProceso');
+        const listaArchivos = document.getElementById('listaArchivos');
+
+        // Enviar video para cortar
+        btnCortar.addEventListener('click', async () => {
+            if (!archivoVideo.files.length) {
+                alert('⚠️ Selecciona un video primero');
+                return;
+            }
+
+            estadoProceso.textContent = '✂️ Cortando el video en fragmentos de 60 segundos...';
+            listaArchivos.innerHTML = '';
+
+            const formData = new FormData();
+            formData.append('video', archivoVideo.files[0]);
+
+            try {
+                const respuesta = await fetch('/cortar-video', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const datos = await respuesta.json();
+
+                if (datos.exito) {
+                    estadoProceso.textContent = `✅ Video cortado correctamente. Se generaron ${datos.cantidad} fragmentos.`;
+                    
+                    // Mostrar lista de archivos generados
+                    datos.archivos.forEach(nombre => {
+                        const elemento = document.createElement('div');
+                        elemento.className = 'archivo-item';
+                        elemento.textContent = `📹 ${nombre}`;
+                        listaArchivos.appendChild(elemento);
+                    });
+
+                    // Mostrar sección de autenticación
+                    seccionAuth.style.display = 'block';
+                    codigo8digitos.textContent = datos.codigo_temporal || 'ESPERANDO...';
+                } else {
+                    estadoProceso.textContent = `❌ Error: ${datos.mensaje}`;
+                }
+
+            } catch (error) {
+                estadoProceso.textContent = `❌ Error de conexión: ${error.message}`;
+            }
+        });
+
+        // Enviar código para conectar y publicar
+        btnConectar.addEventListener('click', async () => {
+            const codigo = codigoIngresado.value.trim();
+            if (codigo.length !== 8) {
+                alert('⚠️ El código debe tener exactamente 8 dígitos');
+                return;
+            }
+
+            estadoProceso.textContent = '🔐 Verificando código y conectando con WhatsApp...';
+
+            try {
+                const respuesta = await fetch('/publicar-estados', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ codigo: codigo })
+                });
+
+                const datos = await respuesta.json();
+
+                if (datos.exito) {
+                    estadoProceso.textContent = `✅ ¡LISTO! Se publicaron ${datos.publicados} estados automáticamente.`;
+                } else {
+                    estadoProceso.textContent = `❌ Error al publicar: ${datos.mensaje}`;
+                }
+
+            } catch (error) {
+                estadoProceso.textContent = `❌ Error de conexión: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>
