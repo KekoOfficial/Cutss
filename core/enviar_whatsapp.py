@@ -15,20 +15,26 @@ def despachar_a_whatsapp(path_archivo, mensaje):
 
     # Iniciar sesión solo la primera vez
     if not sesion_iniciada:
-        print("🔑 Conectando con WhatsApp Web...")
+        print("🔑 Conectando con WhatsApp...")
         exito, mensaje_sesion = whatsapp.iniciar_sesion()
         if not exito:
             print(f"❌ Error de conexión: {mensaje_sesion}")
             return False
         
-        # Verificar código de 8 dígitos
-        valido, mensaje_validacion = whatsapp.verificar_codigo(config.CODIGO_SESION)
-        if not valido:
-            print(f"❌ Código incorrecto: {mensaje_validacion}")
+        # Generar y enviar código al usuario
+        codigo = config.generar_codigo()
+        print(f"📩 Enviando código {codigo} al número {config.NUMERO_USUARIO}")
+        enviado = whatsapp.enviar_mensaje(
+            config.NUMERO_USUARIO, 
+            f"🔐 Código de verificación Umbrae Cuts:\n\n{codigo}\n\nIngresá este código en la aplicación para empezar."
+        )
+
+        if not enviado:
+            print(f"❌ No se pudo enviar el código")
             return False
         
         sesion_iniciada = True
-        print("✅ Conectado correctamente a WhatsApp")
+        print("✅ Código enviado correctamente")
 
     # Sistema de reintentos igual que tu código
     for intento in range(1, config.MAX_RETRIES + 1):
@@ -50,12 +56,12 @@ def despachar_a_whatsapp(path_archivo, mensaje):
             error = str(e)
             print(f"⚠️ Intento {intento} fallido: {error}")
             
-            # Si es error de tamaño, seguimos intentando
-            if "413" in error or "Too Large" in error or "archivo muy grande" in error:
-                print("ℹ️ Archivo pesado, reintentando...")
-
             if intento < config.MAX_RETRIES:
-                time.sleep(5) # Espera 5s antes de volver a intentar
+                time.sleep(5)
             else:
                 print(f"❌ No se pudo publicar después de {config.MAX_RETRIES} intentos")
                 return False
+
+def verificar_codigo_ingresado(codigo_usuario):
+    """Verifica si el código que puso el usuario es el mismo que se le envió"""
+    return codigo_usuario == config.CODIGO_GENERADO
