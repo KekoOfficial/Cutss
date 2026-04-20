@@ -4,17 +4,19 @@ import threading
 import queue
 import subprocess
 from core.cortar import extraer_segmento
-from core.enviar_whatsapp import despachar_a_whatsapp
+from core.enviar_whatsapp import enviar_codigo_al_usuario, despachar_a_whatsapp
 import config
 
 app = Flask(__name__)
 
-# Carpetas
+# Carpetas de trabajo
 INPUT_FOLDER = config.INPUT_FOLDER
 os.makedirs(INPUT_FOLDER, exist_ok=True)
 os.makedirs(config.TEMP_FOLDER, exist_ok=True)
 
+# Estados del sistema
 PROCESANDO = False
+ESPERANDO_CODIGO = False
 cola = queue.Queue()
 
 class MallyLogger:
@@ -25,110 +27,147 @@ class MallyLogger:
     def exito(self, n):
         return (f"🎬 {self.nombre}\n"
                 f"💎 PARTE: {n} / {self.total}\n"
-                f"✅ Contenido procesado\n"
+                f"✅ Contenido verificado y publicado\n"
                 f"🔗 @MallyUmbrae")
 
-# --- HILOS DE ALTA VELOCIDAD ---
+# --- HILOS DE TRABAJO ---
 def productor(ruta_video, total_partes, log):
-    """Corta super rapido y mete en cola"""
+    """Corta el video en fragmentos y los agrega a la cola"""
     for n in range(1, total_partes + 1):
-        print(f"⚡ CORTANDO PARTE {n}/{total_partes}")
-        path = extraer_segmento(ruta_video, n, total_partes)
-        if os.path.exists(path):
+        print(f"⚡ Cortando parte {n}/{total_partes}")
+        ruta_parte = extraer_segmento(ruta_video, n, total_partes)
+        if os.path.exists(ruta_parte):
             cola.put({
-                'n': n,
-                'path': path,
-                'caption': log.exito(n)
+                'numero_parte': n,
+                'ruta_archivo': ruta_parte,
+                'mensaje': log.exito(n)
             })
-    cola.put(None) # Marca de finalización
+    cola.put(None) # Marcador de fin de proceso
 
 def consumidor():
-    """Envia mientras el otro corta"""
+    """Toma los fragmentos de la cola y los publica automáticamente"""
     while True:
-        item = cola.get()
-        if item is None:
+        elemento = cola.get()
+        if elemento is None:
             break
-        print(f"📤 ENVIANDO PARTE {item['n']}")
-        ok = despachar_a_whatsapp(item['path'], item['caption'])
+        print(f"📤 Enviando parte {elemento['numero_parte']}")
+        ok = despachar_a_whatsapp(elemento['ruta_archivo'], elemento['mensaje'])
         if ok:
-            print(f"✅ PARTE {item['n']} PUBLICADA")
-        # Eliminar archivo temporal después de publicar
-        if os.path.exists(item['path']):
-            os.remove(item['path'])
+            print(f"✅ Parte {elemento['numero_parte']} publicada correctamente")
+        # Eliminamos el archivo temporal
+        if os.path.exists(elemento['ruta_archivo']):
+            os.remove(elemento['ruta_archivo'])
         cola.task_done()
 
+# --- RUTAS DE LA APLICACIÓN WEB ---
 @app.route("/")
 def index():
     return render_template("index.html")
 
+@app.route("/solicitar-codigo", methods=["POST"])
+def solicitar_codigo():
+    """Cuando pedís el código, nosotros te lo enviamos a tu WhatsApp"""
+    global ESPERANDO_CODIGO
+
+    if ESPERANDO_CODIGO:
+        return jsonify({
+            "estado": "ocupado",
+            "mensaje": "Ya te enviamos un código, revisá tus mensajes"
+        })
+
+    # Enviamos el código a tu número
+    exito, mensaje = enviar_codigo_al_usuario()
+
+    if exito:
+        ESPERANDO_CODIGO = True
+        return jsonify({
+            "estado": "ok",
+            "mensaje": mensaje
+        })
+    else:
+        return jsonify({
+            "estado": "error",
+            "mensaje": mensaje
+        })
+
 @app.route("/procesar", methods=["POST"])
 def procesar():
-    global PROCESANDO
+    global PROCESANDO, ESPERANDO_CODIGO
 
     if PROCESANDO:
-        return jsonify({"status": "ocupado", "mensaje": "⏳ Ya estoy trabajando..."})
+        return jsonify({
+            "estado": "ocupado",
+            "mensaje": "⏳ Ya estoy trabajando en tu contenido, esperá..."
+        })
 
-    if "video" not in request.files:
-        return jsonify({"status": "error", "mensaje": "Selecciona un video primero"})
+    # Recibimos los datos que ingresaste
+    codigo_ingresado = request.form.get("codigo", "").strip()
+    archivo_video = request.files.get("video")
+    titulo_contenido = request.form.get("titulo", "SIN TÍTULO")
 
-    archivo = request.files["video"]
-    titulo = request.form.get("titulo", "SIN_TITULO")
-    codigo_whatsapp = request.form.get("codigo", "")
+    # Verificaciones
+    if not codigo_ingresado:
+        return jsonify({"estado": "error", "mensaje": "Ingresá el código que te enviamos"})
+    
+    # Comprobamos que el código sea el mismo que te mandamos
+    if not config.verificar_codigo_ingresado(codigo_ingresado):
+        return jsonify({"estado": "error", "mensaje": "❌ Código incorrecto. Usá el que te enviamos a tu WhatsApp"})
 
-    # Guardar código en configuración
-    config.CODIGO_SESION = codigo_whatsapp
+    if not archivo_video:
+        return jsonify({"estado": "error", "mensaje": "Seleccioná el video que querés procesar"})
 
-    ruta_entrada = os.path.join(INPUT_FOLDER, archivo.filename)
-    archivo.save(ruta_entrada)
+    # Guardamos el video original
+    ruta_entrada = os.path.join(INPUT_FOLDER, archivo_video.filename)
+    archivo_video.save(ruta_entrada)
 
     PROCESANDO = True
+    ESPERANDO_CODIGO = False
 
-    def trabajo_completo():
+    def proceso_completo():
         global PROCESANDO
 
-        # Calcular duracion y partes
-        res = subprocess.run([
-            'ffprobe', '-v', 'error', '-show_entries', 'format=duration', 
+        # Calculamos la duración total y la cantidad de partes
+        resultado = subprocess.run([
+            'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
             '-of', 'default=noprint_wrappers=1:nokey=1', ruta_entrada
         ], capture_output=True, text=True)
 
-        duracion = float(res.stdout)
-        total_partes = int(duracion // config.CLIP_DURATION) + 1
+        duracion_total = float(resultado.stdout)
+        cantidad_partes = int(duracion_total // config.CLIP_DURATION) + 1
 
-        log = MallyLogger(titulo, total_partes)
+        registro = MallyLogger(titulo_contenido, cantidad_partes)
 
-        print(f"🔥 INICIANDO: {titulo} | TOTAL DE PARTES: {total_partes}")
+        print(f"🚀 Iniciando procesamiento: {titulo_contenido} | Total de partes: {cantidad_partes}")
 
-        # LANZAR PROCESOS EN PARALELO
-        hilo1 = threading.Thread(target=productor, args=(ruta_entrada, total_partes, log))
-        hilo2 = threading.Thread(target=consumidor)
+        # Ejecutamos cortado y publicación al mismo tiempo
+        hilo_cortar = threading.Thread(target=productor, args=(ruta_entrada, cantidad_partes, registro))
+        hilo_publicar = threading.Thread(target=consumidor)
 
-        hilo1.start()
-        hilo2.start()
+        hilo_cortar.start()
+        hilo_publicar.start()
 
-        hilo1.join()
-        hilo2.join()
+        hilo_cortar.join()
+        hilo_publicar.join()
 
-        # Limpieza final
+        # Limpiamos archivos
         if os.path.exists(ruta_entrada):
             os.remove(ruta_entrada)
 
         PROCESANDO = False
         print("✅ PROCESO FINALIZADO - TODOS LOS ESTADOS PUBLICADOS")
 
-    # === Calcular datos antes de responder ===
-    res = subprocess.run([
-        'ffprobe', '-v', 'error', '-show_entries', 'format=duration', 
-        '-of', 'default=noprint_wrappers=1:nokey=1', ruta_entrada
-    ], capture_output=True, text=True)
-    duracion = float(res.stdout)
-    total_partes = int(duracion // config.CLIP_DURATION) + 1
+    # Iniciamos el trabajo en segundo plano
+    threading.Thread(target=proceso_completo, daemon=True).start()
 
-    threading.Thread(target=trabajo_completo, daemon=True).start()
-
-    return jsonify({"status": "ok", "mensaje": f"🚀 PROCESANDO {total_partes} PARTES EN MODO VELOCIDAD"})
+    return jsonify({
+        "estado": "ok",
+        "mensaje": f"✅ Código correcto. Se están procesando y publicando {cantidad_partes} partes automáticamente"
+    })
 
 if __name__ == "__main__":
-    print("⚡ UMBRAE CUTS - WHATSAPP EDICIÓN ⚡")
-    print("✅ Cortes rápidos | ✅ Publicación automática | ✅ Nomenclatura personalizada")
+    print("="*60)
+    print("🌑 UMBRAE CUTS - SISTEMA INICIADO")
+    print("📱 Número configurado: " + config.NUMERO_USUARIO)
+    print("✉️ Nosotros te enviamos el código de verificación")
+    print("="*60)
     app.run(host="0.0.0.0", port=5000, debug=False)
