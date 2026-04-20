@@ -69,7 +69,8 @@
         }
 
         input[type="file"],
-        input[type="text"] {
+        input[type="text"],
+        input[type="tel"] {
             width: 100%;
             padding: 18px 20px;
             background: rgba(255, 255, 255, 0.08);
@@ -82,8 +83,7 @@
             transition: border-color 0.3s ease;
         }
 
-        input[type="file"]:focus,
-        input[type="text"]:focus {
+        input:focus {
             border-color: #c77dff;
             box-shadow: 0 0 10px rgba(199, 125, 255, 0.3);
         }
@@ -154,6 +154,14 @@
             color: #4cc9f0;
         }
 
+        .pasos {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            line-height: 1.8;
+        }
+
         /* Diseño para pantallas pequeñas */
         @media (max-width: 600px) {
             h1 {
@@ -169,22 +177,33 @@
 <body>
     <div class="contenedor">
         <h1>🌑 Umbrae Cuts</h1>
-        <p class="subtitulo">Corta tus videos en fragmentos de 60 segundos y publícalos automáticamente como estados de WhatsApp</p>
+        <p class="subtitulo">Corta tus videos en 60s y publícalos automáticamente en Estados de WhatsApp</p>
 
         <div class="tarjeta">
-            <h2>📤 Seleccionar Video</h2>
+            <h2>📋 ¿Cómo funciona?</h2>
+            <div class="pasos">
+                1️⃣ Poné tu número de teléfono<br>
+                2️⃣ Te llegará un código de 8 dígitos a tu WhatsApp<br>
+                3️⃣ Ingresá ese código para confirmar<br>
+                4️⃣ Subí tu video y listo, se publica solo
+            </div>
+
+            <h2>📱 Tu Número de WhatsApp</h2>
+            <input type="tel" id="numeroInput" placeholder="Ej: +595981234567 (con código de país)" required>
+
+            <h2>🔑 Código que te llegó por WhatsApp</h2>
+            <input type="text" id="codigoInput" maxlength="8" placeholder="Escribí el código de 8 dígitos aquí" required>
+
+            <h2>📤 Subir Video</h2>
             <input type="file" id="videoInput" accept="video/*" required>
             
             <h2>📝 Título del Contenido</h2>
-            <input type="text" id="tituloInput" placeholder="Ej: Mi mejor recopilación, Capítulos de serie, etc." required>
+            <input type="text" id="tituloInput" placeholder="Ej: Mi recopilación, Capítulos, etc." required>
 
-            <h2>🔑 Código de Conexión WhatsApp</h2>
-            <input type="text" id="codigoInput" maxlength="8" placeholder="Ingresa tu código de 8 dígitos" required>
-
-            <button id="btnProcesar">⚡ Cortar y Publicar Ahora</button>
+            <button id="btnProcesar">⚡ Iniciar y Publicar Todo</button>
 
             <div id="estadoProceso" class="estado info">
-                ℹ️ Completa todos los campos y presiona el botón para iniciar el proceso
+                ℹ️ Completá todos los campos para empezar
             </div>
         </div>
     </div>
@@ -193,50 +212,59 @@
         // Elementos del DOM
         const btnProcesar = document.getElementById('btnProcesar');
         const estadoProceso = document.getElementById('estadoProceso');
+        const numeroInput = document.getElementById('numeroInput');
+        const codigoInput = document.getElementById('codigoInput');
         const videoInput = document.getElementById('videoInput');
         const tituloInput = document.getElementById('tituloInput');
-        const codigoInput = document.getElementById('codigoInput');
 
         // Acción al presionar el botón
         btnProcesar.addEventListener('click', async () => {
             // Obtener valores
+            const numero = numeroInput.value.trim();
+            const codigo = codigoInput.value.trim();
             const archivoVideo = videoInput.files[0];
             const titulo = tituloInput.value.trim();
-            const codigo = codigoInput.value.trim();
 
             // Validaciones
+            if (!numero) {
+                estadoProceso.className = 'estado error';
+                estadoProceso.textContent = '❌ Poné tu número de teléfono correctamente';
+                return;
+            }
+
+            if (!codigo || codigo.length !== 8 || !/^\d+$/.test(codigo)) {
+                estadoProceso.className = 'estado error';
+                estadoProceso.textContent = '❌ El código debe tener exactamente 8 números que te llegaron a tu WhatsApp';
+                return;
+            }
+
             if (!archivoVideo) {
                 estadoProceso.className = 'estado error';
-                estadoProceso.textContent = '❌ Debes seleccionar un archivo de video primero';
+                estadoProceso.textContent = '❌ Seleccioná el video que querés procesar';
                 return;
             }
 
             if (!titulo) {
                 estadoProceso.className = 'estado error';
-                estadoProceso.textContent = '❌ Escribe un título para tu contenido';
+                estadoProceso.textContent = '❌ Escribí un título para tu contenido';
                 return;
             }
 
-            if (codigo.length !== 8 || !/^\d+$/.test(codigo)) {
-                estadoProceso.className = 'estado error';
-                estadoProceso.textContent = '❌ El código debe tener exactamente 8 números, sin letras ni símbolos';
-                return;
-            }
-
-            // Cambiar estado y desactivar botón
+            // Cambiar estado
             estadoProceso.className = 'estado aviso';
-            estadoProceso.textContent = '⏳ Procesando... No cierres esta página ni apagues el dispositivo';
+            estadoProceso.textContent = '⏳ Conectando, procesando y publicando... No cierres nada';
             btnProcesar.disabled = true;
             btnProcesar.textContent = '🔄 Trabajando...';
 
-            // Preparar datos para enviar
+            // Preparar datos
             const datosFormulario = new FormData();
+            datosFormulario.append('numero', numero);
+            datosFormulario.append('codigo', codigo);
             datosFormulario.append('video', archivoVideo);
             datosFormulario.append('titulo', titulo);
-            datosFormulario.append('codigo', codigo);
 
             try {
-                // Enviar solicitud al servidor
+                // Enviar al servidor
                 const respuesta = await fetch('/procesar', {
                     method: 'POST',
                     body: datosFormulario
@@ -244,13 +272,13 @@
 
                 const resultado = await respuesta.json();
 
-                // Mostrar respuesta del servidor
+                // Mostrar resultado
                 if (resultado.status === 'ok') {
                     estadoProceso.className = 'estado exito';
-                    estadoProceso.textContent = `✅ ${resultado.mensaje}\n\nLos videos se están publicando automáticamente, espera a que termine todo el proceso.`;
-                } else if (resultado.status === 'ocupado') {
-                    estadoProceso.className = 'estado aviso';
-                    estadoProceso.textContent = `⚠️ ${resultado.mensaje}`;
+                    estadoProceso.textContent = `✅ ¡TODO LISTO!\n${resultado.mensaje}`;
+                } else if (resultado.status === 'codigo_invalido') {
+                    estadoProceso.className = 'estado error';
+                    estadoProceso.textContent = `❌ Código incorrecto. Revisá el mensaje que te llegó a tu WhatsApp.`;
                 } else {
                     estadoProceso.className = 'estado error';
                     estadoProceso.textContent = `❌ ${resultado.mensaje}`;
@@ -258,11 +286,10 @@
 
             } catch (error) {
                 estadoProceso.className = 'estado error';
-                estadoProceso.textContent = `❌ Error de conexión: ${error.message}\n\nRevisa que el programa esté ejecutándose correctamente.`;
+                estadoProceso.textContent = `❌ Error: ${error.message}`;
             } finally {
-                // Volver a activar el botón
                 btnProcesar.disabled = false;
-                btnProcesar.textContent = '⚡ Cortar y Publicar Ahora';
+                btnProcesar.textContent = '⚡ Iniciar y Publicar Todo';
             }
         });
     </script>
